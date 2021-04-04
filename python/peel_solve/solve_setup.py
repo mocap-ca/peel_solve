@@ -22,6 +22,7 @@
 import maya.cmds as m
 from maya import mel
 import solve
+import json
 from peel_solve import locator, roots, rigidbody
 
 """ Collection of utilities for creating a solve setup"""
@@ -123,8 +124,26 @@ def strip_left(source, value):
     return source[len(value):]
 
 
-def data(root, strip_marker=None, strip_joint=None):
+def save_data(file_path=None, root=None, strip_marker=None, strip_joint=None):
+
+    solve_rig = data(root, strip_marker, strip_joint)
+    sn = m.file(sn=True, q=True)
+    if file_path is None:
+        file_path = sn[:sn.rfind('.')] + ".json"
+    fp = open(file_path, "w")
+    json.dump(solve_rig, fp)
+    fp.close()
+    return file_path, solve_rig
+
+
+def data(root=None, strip_marker=None, strip_joint=None):
     """ serialize the solve settings for the given root node """
+
+    if root is None:
+        ret = roots.ls()
+        if len(ret) != 1:
+            raise RuntimeError("Could not determine root")
+        root = ret[0]
 
     all_data = {}
 
@@ -151,15 +170,17 @@ def data(root, strip_marker=None, strip_joint=None):
 
         parent = m.listRelatives(activeMarker, p=True)[0]
 
-        data = {'marker': strip_left(marker_name, strip_marker),
-                'marker_raw': marker_name,
-                'source': strip_left(source, strip_marker),
-                'source_raw': source,
-                'parent': strip_left(parent, strip_joint),
-                'parent_raw': parent,
-                'peelType': m.getAttr(activeMarker + ".peelType"),
-                'tWeight': m.getAttr(activeMarker + ".translationWeight"),
-                'rWeight': m.getAttr(activeMarker + ".rotationWeight")}
+        data = {'marker':      strip_left(marker_name, strip_marker),
+                'marker_raw':  marker_name,
+                'source':      strip_left(source, strip_marker),
+                'source_raw':  source,
+                'parent':      strip_left(parent, strip_joint),
+                'parent_raw':  parent,
+                'peelType':    m.getAttr(activeMarker + ".peelType"),
+                'tWeight':     m.getAttr(activeMarker + ".translationWeight"),
+                'rWeight':     m.getAttr(activeMarker + ".rotationWeight"),
+                'translation': m.getAttr(activeMarker + ".t"),
+                'rotation':    m.getAttr(activeMarker + ".r")}
 
         if m.objExists(source):
             rigidbody_node = rigidbody.from_active(source)
@@ -191,19 +212,31 @@ def data(root, strip_marker=None, strip_joint=None):
 
     # Rotation stiffness (passive markers)
 
-    rotstiff = {}
+    attributes = {}
     for passiveTransform in m.peelSolve(s=root, lp=True, ns=True):
+
+        data = {}
+
+        if m.objExists(passiveTransform + ".lendof"):
+            data["lendof"] = m.getAttr(passiveTransform + ".lendof")
+
+        if m.objExists(passiveTransform + ".lengthStiff"):
+            data["lengthStiff"] = m.getAttr(passiveTransform + ".lendof")
+
         if m.objExists(passiveTransform + ".rotStiff"):
-            marker_name = passiveTransform
-            if '|' in marker_name: marker_name = marker_name.split('|')[-1]
-            if ':' in marker_name: marker_name = marker_name.split(':')[-1]
             stiff = m.getAttr(passiveTransform + ".rotStiff")
             px = m.getAttr(passiveTransform + '.preferredAngleX')
             py = m.getAttr(passiveTransform + '.preferredAngleY')
             pz = m.getAttr(passiveTransform + '.preferredAngleZ')
-            rotstiff[marker_name] = (stiff, px, py, pz)
+            data['rotStiff'] = (stiff, px, py, pz)
 
-    all_data['rotstiff'] = rotstiff
+        if data:
+            joint_name = passiveTransform
+            if '|' in joint_name: joint_name = joint_name.split('|')[-1]
+            if ':' in joint_name: joint_name = joint_name.split(':')[-1]
+            attributes[joint_name] = data
+
+    all_data['attributes'] = attributes
 
     return all_data
 
@@ -262,7 +295,9 @@ def connect_data(data, prefix='', namespace=''):
         dst = findTransform(namespace + active['parent'])
         if not dst:
             raise RuntimeError("Cannot find: " + namespace + active['parent'])
-        connect(src, dst[0], active['peelType'], active['tWeight'], active['rWeight'])
+        line_loc, _ = connect(src, dst[0], active['peelType'], active['tWeight'], active['rWeight'])
+        m.setAttr(line_loc + ".t", *active['translation'][0])
+        m.setAttr(line_loc + ".r", *active['rotation'][0])
 
 
 def create_setup(marker_prefix, skeleton_prefix):

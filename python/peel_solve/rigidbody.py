@@ -68,6 +68,7 @@ def create(nodes=None):
 
 
 def ls():
+    """ Returns unbaked rigidbodies """
     for rigidbody in m.ls(type="rigidbodyNode"):
         con = m.listConnections(rigidbody + ".OutputTranslation", d=True, s=False)
         if con:
@@ -132,13 +133,33 @@ def connect():
                 print("Cannot find source for: " + str(rb_local))
 
 
-def unbake():
-    for shape in m.ls(type="rigidbodyLocator", l=True):
-        rbt = m.listRelatives(shape, p=True, f=True)[0]
+def unbake(nodes=None):
 
-        print(rbt)
+    """ Reconnects the rigidbody markers to the source data """
 
-        if not m.listRelatives(rbt + ".t"):
+    if nodes is None:
+        nodes = []
+        # For each rididbody shape node, find the transform
+        for shape in m.ls(type="rigidbodyLocator", l=True):
+            nodes.append(m.listRelatives(shape, p=True, f=True)[0])
+        if not nodes:
+            print("No rigidbodies found")
+            return
+    elif isinstance(nodes, basestring):
+            nodes = [nodes]
+
+    for rbt in nodes:
+
+        src = m.listConnections(rbt + ".t")
+        if src:
+            for i in src:
+                print(i, m.nodeType(i))
+                if m.nodeType(i) == "rigidbodyNode":
+                    m.delete(i)
+
+        m.delete(rbt, channels=True)
+
+        if not m.listConnections(rbt + ".t"):
 
             rbn = m.createNode("rigidbodyNode", n="rbn")
 
@@ -190,7 +211,6 @@ def fetch(rbn):
 
 
 def bake():
-    m.refresh(su=False)
 
     locs = ls()
 

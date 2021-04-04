@@ -25,6 +25,37 @@ from maya import mel
 import os
 
 
+def create_file_name(shot_name, solves_folder):
+    """Returns the name the the solved MB file needs to be saved as"""
+    versioned_file = get_latest_version_file(shot_name)
+    return versioned_file  # eg: D:/shots/solves/000246/00246_solved_v02.mb
+
+
+def get_latest_version_file(shot_name, solves_folder):  # Todo: some repetition with the other get_new_version method.
+    """Find the latest file version for the shot in the solves folder, and returns the next version file name."""
+
+    # if first version, create folder with shot name, return file name for saving
+    if not os.path.isdir(os.path.join(solves_folder, shot_name)):
+        os.mkdir(os.path.join(solves_folder, shot_name))
+        first_version_file = os.path.join(solves_folder, shot_name, shot_name + "_solved_v001.mb")
+        return first_version_file
+
+    # if folder already exists. find latest file
+    latest_version = 0
+    for each_file in os.listdir(os.path.join(solves_folder, shot_name)):
+        if not each_file.startswith(shot_name + "_solved_v"):
+            continue
+        version_part = each_file.replace((shot_name + "_solved_v"), "")[:-3]  # also removes the .mb part @ end
+        if not version_part.isdigit():
+            continue
+        version = int(version_part)
+        if version > latest_version:
+            latest_version = version
+    latest_version = str(latest_version + 1).zfill(3)  # Todo: what if more than 999 versions?
+    return os.path.join(solves_folder, shot_name, shot_name + "_solved_v" + latest_version + ".mb")
+    # return eg: "D:/shots/solves/000246/00246_solved_v02.mb"
+
+
 def delete_mesh_below(node):
 
     mesh = m.listRelatives(node, typ='mesh', ad=True, f=True)
@@ -52,7 +83,7 @@ def load_c3d(c3d_file=None, merge=True, timecode=True, convert=False, debug=Fals
     # paths _must_ have forward slashes for maya's file command
     c3d_file = c3d_file.replace('\\', '/')
 
-    root = roots.ls()
+    root = roots.find_optical_root()
 
     if merge:
         if root is None:

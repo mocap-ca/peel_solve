@@ -36,7 +36,7 @@ def get_mdagpath(item):
     return dp
 
 
-def get_mobj(item):
+def get_mdep(item):
     """ Returns an MObject for the item (by name)"""
     sel = om.MSelectionList()
     sel.add(item)
@@ -49,7 +49,7 @@ def get_mobj(item):
 def dep_fn(node):
     """ returns an MFnDependencyNode for the given node (string), or None """
 
-    obj = get_mobj(node)
+    obj = get_mdep(node)
     if obj is None:
         return None
 
@@ -83,13 +83,13 @@ def plug_info(plug):
     if isinstance(plug, basestring):
         plug = get_plug(plug)
 
-    print "name:   " + plug.name()
-    print "array:  " + str(plug.isArray())
+    print("name:   " + plug.name())
+    print("array:  " + str(plug.isArray()))
     if plug.isArray():
-        print "ele:    " + str(plug.numElements())
-    print "net:    " + str(plug.isNetworked())
-    print "null:   " + str(plug.isNull())
-    print "childs: " + str(plug.numChildren())
+        print("ele:    " + str(plug.numElements()))
+    print("net:    " + str(plug.isNetworked()))
+    print("null:   " + str(plug.isNull()))
+    print("childs: " + str(plug.numChildren()))
 
 
 def attr_name(attr_obj):
@@ -146,7 +146,7 @@ def anim_curve(node, attr, create=False):
         try:
             fnCurve.create(plug, dgmod)
         except RuntimeError as e:
-            print "Error creating anim curve for " + node + " " + attr
+            print("Error creating anim curve for " + node + " " + attr)
             raise e
 
         return fnCurve, dgmod

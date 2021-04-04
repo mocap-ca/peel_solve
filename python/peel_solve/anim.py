@@ -23,16 +23,36 @@ from peel_solve import node_list, roots
 import math
 
 
+def ls():
+
+    nodes = set()
+
+    for i in m.ls(type="animCurveTA"):
+        nodes.add(m.listConnections(i + ".o")[0])
+
+    for i in m.ls(type="animCurveTL"):
+        nodes.add(m.listConnections(i + ".o")[0])
+
+    return list(nodes)
+
+
+def time_range(sel=None):
+    if sel is None:
+        sel = ls()
+
+    k = m.keyframe(sel, q=True)
+
+    return min(k), max(k)
+
+
 def clear_animation():
     """ Clear the animation off the solve skeleton root and below """
     m.delete(roots.ls(), channels=True, hierarchy="below")
 
 
-def frame_animation():
-    """ Set the playback range to the min/max based on keys on joints """
-    j = m.ls(typ='joint')
-    keys = m.keyframe(j, q=True)
-    m.playbackOptions(min=math.floor(min(keys)), max=math.ceil(max(keys)))
+def frame(sel=None):
+    a, b = time_range(sel)
+    m.playbackOptions(min=math.floor(a), max=math.ceil(b))
 
 
 def cut_keys():
@@ -50,20 +70,14 @@ def offset_animation(value, prefix=None):
     if isinstance(value, float):
         value = round(value)
 
-    print("Offset: " + str(value))
-
     if prefix:
         j = m.ls(prefix + "*", typ='joint')
     else:
-        j = m.ls(typ='joint')
+        j = ls()
 
-    j += node_list.cameras()
+    print("Offsetting %d nodes by %d" % (len(j), value))
 
-    # remove keys from hidden channels.
-    for i in j:
-        for ch in ['tx', 'ty', 'tz']:
-            if not m.getAttr(i + '.' + ch, k=True):
-                m.cutKey(i + '.' + ch)
+    m.keyframe(j, tc=value, r=True)
 
     m.playbackOptions(min=start+value, max=end+value)
 
@@ -75,14 +89,13 @@ def trim_anim():
     start = m.playbackOptions(q=True, min=True)
     end = m.playbackOptions(q=True, max=True)
 
-    j = m.ls(type='joint') + [m.listRelatives(i, p=True)[0] for i in m.ls(type='camera')]
-    k = m.keyframe(j, q=True)
+    a, b = time_range()
 
-    if max(k) > end:
-        m.cutKey(j, time=(max(k), end))
+    if b > end:
+        m.cutKey(j, time=(b, end))
 
-    if min(k) < start:
-        m.cutKey(j, time=(min(k), start))
+    if a < start:
+        m.cutKey(j, time=(a, start))
 
 
 def zero_anim(first_frame=1, prefix=None):
@@ -92,7 +105,7 @@ def zero_anim(first_frame=1, prefix=None):
     if prefix:
         j = m.ls(prefix + "*", typ='joint')
     else:
-        j = m.ls(typ='joint')
+        j = ls()
 
     if not j:
         if prefix:

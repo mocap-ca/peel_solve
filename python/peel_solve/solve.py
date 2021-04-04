@@ -120,7 +120,7 @@ def solve_args(solve_type):
         if values[a]: args[b] = True
 
     if values['method'] >= 0 and values['method'] <= 3:
-        args['m_cmds'] = values['method']
+        args['m'] = values['method']
 
     return args
 
@@ -171,7 +171,11 @@ def solve(solve_type=None):
         go_to_pref_not_root()
 
     # args['e'] = True
-    ret = m.peelSolve(s=rn, e=True, **args)
+    try:
+        m.refresh(su=True)
+        m.peelSolve(s=rn, e=True, **args)
+    finally:
+        m.refresh(su=False)
 
     if solve_type != 'single':
         chan = m.peelSolve(s=rn, ns=True, lc=True)
@@ -217,7 +221,7 @@ def frame(iterations=500, root_nodes=None):
 
     root_flag = ' '.join(['-s ' + i for i in root_nodes])
 
-    cmd = "peelSolve -e %s -scl 1 -i %d -threads 2 -gs 1 -quat -m_cmds 1;" \
+    cmd = "peelSolve -e %s -scl 1 -i %d -threads 2 -gs 1 -quat -m 1;" \
           % (root_flag, iterations)
 
     print(cmd)
