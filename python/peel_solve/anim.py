@@ -98,6 +98,23 @@ def trim_anim():
         m.cutKey(j, time=(a, start))
 
 
+def zero_selected(first_frame=1):
+    """ move the animation on the selected nodes to first_frame (1) """
+    
+    nodes = m.ls(sl=True)
+    keys = m.keyframe(nodes, q=True)
+    print min(keys), max(keys)
+    
+    value = round(min(keys))
+
+    offset = min(keys) * -1 + first_frame
+    
+    print("Offsetting %d nodes by %d" % (len(nodes), value))
+
+    m.keyframe(nodes, tc=offset, r=True)
+
+    
+
 def zero_anim(first_frame=1, prefix=None):
 
     """ move the animation on all joints to first_frame (1) """
@@ -114,6 +131,8 @@ def zero_anim(first_frame=1, prefix=None):
             raise RuntimeError("Could not find anything to offset")
 
     keys = m.keyframe(j, q=True)
+    
+    print min(keys), max(keys)
 
     offset = min(keys) * -1 + first_frame
 

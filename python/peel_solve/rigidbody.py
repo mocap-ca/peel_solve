@@ -67,12 +67,20 @@ def create(nodes=None):
     return rbt, rbn, locators
 
 
-def ls():
+def ls(all=False):
     """ Returns unbaked rigidbodies """
+    
+    if all:
+        # For each rididbody shape node, find the transform
+        nodes = []
+        for shape in m.ls(type="rigidbodyLocator", l=True):
+            yield m.listRelatives(shape, p=True, f=True)[0]
+    
     for rigidbody in m.ls(type="rigidbodyNode"):
         con = m.listConnections(rigidbody + ".OutputTranslation", d=True, s=False)
         if con:
             yield con[0]
+
 
 
 def from_active(active_node):
