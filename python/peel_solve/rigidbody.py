@@ -22,9 +22,15 @@
 from __future__ import print_function
 import maya.cmds as m
 from peel_solve import vector, locator
-
+import json
+import os.path
 
 def create(nodes=None):
+
+    """ Creates a rigidbody from nodes, or the current selection if nodes is None
+    @returns: transform, node, [locators]
+    """
+
     if nodes is None:
         nodes = m.ls(sl=True, l=True)
 
@@ -68,6 +74,7 @@ def create(nodes=None):
 
 
 def ls(all=False):
+
     """ Returns unbaked rigidbodies """
     
     if all:
@@ -82,8 +89,43 @@ def ls(all=False):
             yield con[0]
 
 
+def serialize():
+
+    ret = {}
+
+    for rb in ls(all=True):
+        points = []
+        for child in m.listRelatives(rb, f=True, c=True, type="transform"):
+            name = child.split('|')[-1]
+            if name.startswith("RB_") and name.endswith("_Marker"):
+                tr = m.getAttr(child + ".t")[0]
+                w = m.getAttr(child + ".weight")
+                source = name[3:-7]
+                points.append((child, tr, w, source))
+        ret[rb] = points
+
+    return ret
+
+
+def save(file_path=None):
+
+    if file_path is None:
+        sn = m.file(sn=True, q=True)
+        file_path = sn[:sn.rfind('.')] + ".peel"
+
+    data = serialize()
+
+    fp = open(file_path, "w")
+    json.dump({'rigidbodies': data}, fp, indent=4)
+    fp.close()
+
+    print(file_path.replace("/", "\\"))
+
+
+
 
 def from_active(active_node):
+
     """ return the rigidbody node associated with the rigidbody active node """
 
     driven_by = m.listConnections(active_node + ".t", s=True, d=False)
@@ -97,6 +139,7 @@ def from_active(active_node):
 
 
 def source_name(rb_local):
+
     """ based on the given rigidbody locator, guess the source name """
 
     if '|' in rb_local:
@@ -118,6 +161,7 @@ def source_name(rb_local):
 
 
 def connect():
+
     """ Reconnect the rigidbody to the mocap data, by name """
 
     for rigidbody in m.ls(type="rigidbodyNode"):
@@ -219,6 +263,8 @@ def fetch(rbn):
 
 
 def bake():
+
+    """ Bakes all the rigidbodies in the scene """
 
     locs = ls()
 

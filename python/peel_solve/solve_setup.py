@@ -23,7 +23,8 @@ import maya.cmds as m
 from maya import mel
 import solve
 import json
-from peel_solve import locator, roots, rigidbody
+from peel_solve import locator, roots, rigidbody, dag
+import os.path
 
 """ Collection of utilities for creating a solve setup"""
 
@@ -69,18 +70,20 @@ def four_points(joint, rb):
 
 
 def midpoint(nodes, prefix=""):
+
+    """ find the midpoint of a set of points """
+
     #res = [m_cmds.getAttr(prefix + i + ".t")[0] for i in nodes]
     res = [m.xform(prefix + i, q=True, ws=True, t=True) for i in nodes]
     res = [sum(i) for i in zip(*res)]
     return [i / len(nodes) for i in res]
 
 
-def move_to_origin(prefix):
+def move_to_origin(prefix, hip_markers):
     # TODO: This doesn't work with scaled data
-    global HIPS
     oroot = roots.ls()
     m.setAttr(oroot + ".t", 0, 0, 0)
-    n = midpoint(HIPS, prefix)
+    n = midpoint(hip_markers, prefix)
     m.setAttr(oroot + ".t", -n[0], 0, -n[2])
 
 
@@ -124,31 +127,41 @@ def strip_left(source, value):
     return source[len(value):]
 
 
-def save_data(file_path=None, root=None, strip_marker=None, strip_joint=None):
+def save(file_path=None, strip_marker=None, strip_joint=None):
 
-    solve_rig = data(root, strip_marker, strip_joint)
-    sn = m.file(sn=True, q=True)
+    """ Save the solve setup as a json file
+    @param file_path: file to save the json data to, defaults to current scene path with .json extension
+    @param strip_marker: prefix to remove from the marker names
+    @param strip_joint: prefix to remove from the joint names
+    """
+
+    all_roots = roots.ls()
+    if not all_roots:
+        raise RuntimeError("Could not determine root")
+
+    ret = {'rigidbodies' : rigidbody.serialize(), 'solvers' : {}}
+
+    for root in all_roots:
+        ret['solvers'][root] = serialize(root, strip_marker, strip_joint)
+
     if file_path is None:
+        sn = m.file(sn=True, q=True)
         file_path = sn[:sn.rfind('.')] + ".json"
+
+    print "Saved to: " + file_path.replace('/', '\\')
     fp = open(file_path, "w")
-    json.dump(solve_rig, fp)
+    json.dump(ret, fp, indent=4)
     fp.close()
-    return file_path, solve_rig
+
+    return file_path
 
 
-def data(root=None, strip_marker=None, strip_joint=None):
+def serialize(root, strip_marker=None, strip_joint=None):
     """ serialize the solve settings for the given root node """
-
-    if root is None:
-        ret = roots.ls()
-        if len(ret) != 1:
-            raise RuntimeError("Could not determine root")
-        root = ret[0]
 
     all_data = {}
 
     active_list = []
-    all_data['active'] = active_list
 
     # Active Markers
 
@@ -179,8 +192,8 @@ def data(root=None, strip_marker=None, strip_joint=None):
                 'peelType':    m.getAttr(activeMarker + ".peelType"),
                 'tWeight':     m.getAttr(activeMarker + ".translationWeight"),
                 'rWeight':     m.getAttr(activeMarker + ".rotationWeight"),
-                'translation': m.getAttr(activeMarker + ".t"),
-                'rotation':    m.getAttr(activeMarker + ".r")}
+                'translation': m.getAttr(activeMarker + ".t")[0],
+                'rotation':    m.getAttr(activeMarker + ".r")[0]}
 
         if m.objExists(source):
             rigidbody_node = rigidbody.from_active(source)
@@ -210,12 +223,22 @@ def data(root=None, strip_marker=None, strip_joint=None):
 
         active_list.append(data)
 
-    # Rotation stiffness (passive markers)
-
-    attributes = {}
+    passive_list  = []
     for passiveTransform in m.peelSolve(s=root, lp=True, ns=True):
 
-        data = {}
+        data = {
+            'longName' : passiveTransform,
+            'name': passiveTransform.split('|')[-1],
+            'translation' : m.getAttr(passiveTransform + ".t")[0],
+            'rotation': m.getAttr(passiveTransform + ".t")[0],
+            'scale' : m.getAttr(passiveTransform + ".s")[0],
+        }
+
+        if passiveTransform == root:
+            data['parent'] = None
+        else:
+            data['parent'] = m.listRelatives(passiveTransform, p=True)[0]
+
 
         if m.objExists(passiveTransform + ".lendof"):
             data["lendof"] = m.getAttr(passiveTransform + ".lendof")
@@ -224,21 +247,21 @@ def data(root=None, strip_marker=None, strip_joint=None):
             data["lengthStiff"] = m.getAttr(passiveTransform + ".lendof")
 
         if m.objExists(passiveTransform + ".rotStiff"):
-            stiff = m.getAttr(passiveTransform + ".rotStiff")
+            data['rotStiff'] = m.getAttr(passiveTransform + ".rotStiff")
+
+        if m.objExists(passiveTransform + '.preferredAngleX'):
             px = m.getAttr(passiveTransform + '.preferredAngleX')
             py = m.getAttr(passiveTransform + '.preferredAngleY')
             pz = m.getAttr(passiveTransform + '.preferredAngleZ')
-            data['rotStiff'] = (stiff, px, py, pz)
+            data['preferredAngle'] = (px, py, pz)
 
-        if data:
-            joint_name = passiveTransform
-            if '|' in joint_name: joint_name = joint_name.split('|')[-1]
-            if ':' in joint_name: joint_name = joint_name.split(':')[-1]
-            attributes[joint_name] = data
+        joint_name = passiveTransform
+        if '|' in joint_name: joint_name = joint_name.split('|')[-1]
+        if ':' in joint_name: joint_name = joint_name.split(':')[-1]
 
-    all_data['attributes'] = attributes
+        passive_list.append(data)
 
-    return all_data
+    return {'active': active_list, 'passive': passive_list }
 
 
 def findTransform( name ):
@@ -316,3 +339,50 @@ def create_setup(marker_prefix, skeleton_prefix):
 
     ps.set_roots([ skeleton_prefix + "Hips"])
 
+
+def import_solved(in_path):
+
+    """ Applies data that has been created by the standalone solver """
+
+    if not os.path.isfile(in_path):
+        raise RuntimeError("Could not find file: " + str(in_path))
+
+    print("Loading: " + str(in_path))
+    fp = open(in_path, 'r')
+
+    header = fp.readline().strip().split()[1:]
+    
+    print("Channels: " + str(len(header)))
+        
+    frame_data = []
+    
+    print("Clearing animation/channels")
+
+    for nattr in header:
+        frame_data.append({})
+        if m.listConnections(nattr):
+            m.delete(m.listConnections(nattr))            
+            
+    print("Loading data")
+
+    while fp:
+        line = fp.readline().strip().split()
+        if len(line) != len(header) + 1:
+            break
+
+        values = [ float(i) for i in line ]
+        frame = values[0]
+        for channel in range(len(header)):
+            frame_data[channel][frame] = values[channel+1]
+            
+    fp.close()
+    
+    print("Applying curves")
+    
+    for i in range(len(header)):
+        node, addr = header[i].split(".")
+        dag.apply_curve(node, addr, frame_data[i])
+        
+    print("Import complete")
+
+    return header

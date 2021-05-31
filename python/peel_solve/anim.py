@@ -25,6 +25,8 @@ import math
 
 def ls():
 
+    """ Returns a list of of all animated nodes in the scene """
+
     nodes = set()
 
     for i in m.ls(type="animCurveTA"):
@@ -37,6 +39,10 @@ def ls():
 
 
 def time_range(sel=None):
+
+    """ Returns the current animated time range in the scene.
+    @param sel: optional list of animated nodes to use for the time range """
+
     if sel is None:
         sel = ls()
 
@@ -46,23 +52,25 @@ def time_range(sel=None):
 
 
 def clear_animation():
-    """ Clear the animation off the solve skeleton root and below """
+    """ Clear the animation off the solve skeleton root and below. Uses roots.ls() """
     m.delete(roots.ls(), channels=True, hierarchy="below")
 
 
 def frame(sel=None):
+    """ Set the playback options to frame the current animated range """
     a, b = time_range(sel)
     m.playbackOptions(min=math.floor(a), max=math.ceil(b))
 
 
 def cut_keys():
-    """ remove all the keys on the peelsolve joints """
+    """ remove all the keys on the peelsolve joints - uses node_list.joint() """
     m.cutKey(node_list.joints())
 
 
 def offset_animation(value, prefix=None):
 
-    """ moves all the joints and camera animation in the scene by value """
+    """ moves all animation in the scene by value.
+     If prefix is provided it will look for joints with that prefix, otherwise all animation will be offset """
 
     start = m.playbackOptions(q=True, min=True)
     end = m.playbackOptions(q=True, max=True)

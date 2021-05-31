@@ -53,6 +53,10 @@ def dep_fn(node):
     if obj is None:
         return None
 
+    sel = om.MSelectionList()
+    sel.add(node)
+    if sel.length() == 0:
+        raise RuntimeError("Could not find: " + node)
     sel.getDependNode(0, obj)
     return om.MFnDependencyNode(obj)
 
