@@ -138,13 +138,30 @@ def zero_anim(first_frame=1, prefix=None):
         else:
             raise RuntimeError("Could not find anything to offset")
 
-    keys = m.keyframe(j, q=True)
-    
+
+def zero(nodes, first_frame=0):
+    keys = m.keyframe(nodes, q=True)
+
     print min(keys), max(keys)
 
     offset = min(keys) * -1 + first_frame
 
-    offset_animation(offset, prefix)
+    start = m.playbackOptions(q=True, min=True)
+    end = m.playbackOptions(q=True, max=True)
+
+    if isinstance(offset, float):
+        value = round(offset)
+
+    if offset == 0:
+        print("Zero offset, skipping")
+        return
+
+    print("Offsetting %d nodes by %d" % (len(nodes), offset))
+
+    m.keyframe(nodes, tc=offset, r=True)
+
+    m.playbackOptions(min=start + offset, max=end + offset)
+    m.playbackOptions(ast=start + offset, aet=end + offset)
 
 
 

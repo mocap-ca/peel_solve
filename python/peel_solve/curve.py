@@ -39,8 +39,12 @@ class FCurve(object):
 
     def __init__(self, node=None, attr=None):
         """ empty fcurve """
-        self.node = node
-        self.attr = attr
+
+        if attr is None and isinstance(node, basestring) and '.' in node:
+            self.node, self.attr = node.split(".")
+        else:
+            self.node = node
+            self.attr = attr
         self.data = {}
 
     def fetch(self, sl=False):
@@ -414,3 +418,43 @@ def select_keys(node_chan, keys):
 def select_segment(node_chan, segment):
     animcurve = m.listConnections(node_chan, s=True)
     m.selectKey(animcurve[0], add=True, k=True, t=segment)
+
+
+def zero(nodes, start_frame=0):
+
+    start = None
+    end = None
+    curves = []
+
+    for node in nodes:
+        conn = m.listConnections(node, s=True, t="animCurve", p=True)
+        if conn is None:
+            continue
+        for curve_node in conn:
+            channel = m.listConnections(curve_node, d=True, p=True)[0]
+            curve_obj = FCurve(channel)
+            curve_obj.fetch()
+            if start is None or min(curve_obj.data.keys()) < start:
+                start = min(curve_obj.data.keys())
+            if end is None or max(curve_obj.data.keys()) > end:
+                end = max(curve_obj.data.keys())
+            curves.append(curve_obj)
+
+    if start is None:
+        print("Could not find any animation")
+        return
+
+    if start == start_frame:
+        print("Zero offset, skipping")
+        return
+
+    offset = start_frame - start
+
+    for c in curves:
+        c.offset(offset)
+        c.apply(use_api=True)
+
+    print("Offset %d channels by %f" % (len(curves), offset))
+
+    m.playbackOptions(min=start + offset, max=end + offset)
+    m.playbackOptions(ast=start + offset, aet=end + offset)
