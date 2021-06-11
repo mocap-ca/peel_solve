@@ -102,7 +102,10 @@ def serialize():
                 w = m.getAttr(child + ".weight")
                 source = name[3:-7]
                 points.append((child, tr, w, source))
-        ret[rb] = points
+        rb_name = rb
+        if '|' in rb_name:
+            rb_name = rb_name.split('|')[-1]
+        ret[rb_name] = points
 
     return ret
 

@@ -23,8 +23,13 @@ import maya.cmds as m
 from maya import mel
 import solve
 import json
-from peel_solve import locator, roots, rigidbody, dag
+import math
+from peel_solve import locator, roots, rigidbody, dag, joint, matrix
+import maya.OpenMaya as om
+import maya.OpenMayaAnim as oma
 import os.path
+import subprocess
+import tempfile
 
 """ Collection of utilities for creating a solve setup"""
 
@@ -127,7 +132,7 @@ def strip_left(source, value):
     return source[len(value):]
 
 
-def save(file_path=None, strip_marker=None, strip_joint=None):
+def save(file_path=None, strip_marker=None, strip_joint=None, rb=True, skel=True):
 
     """ Save the solve setup as a json file
     @param file_path: file to save the json data to, defaults to current scene path with .json extension
@@ -139,10 +144,26 @@ def save(file_path=None, strip_marker=None, strip_joint=None):
     if not all_roots:
         raise RuntimeError("Could not determine root")
 
-    ret = {'rigidbodies' : rigidbody.serialize(), 'solvers' : {}}
+    if not rb and not skel:
+        raise RuntimeError("Nothing to export, rb or skel were not set")
 
-    for root in all_roots:
-        ret['solvers'][root] = serialize(root, strip_marker, strip_joint)
+    count = 0
+
+    ret = {}
+    if rb:
+        ret['rigidbodies'] = rigidbody.serialize()
+        count += len(ret['rigidbodies'])
+
+    if skel:
+        solvers = {}
+        for root in all_roots:
+            solvers[root] = serialize(root, strip_marker, strip_joint)
+        ret['solvers'] = solvers
+        count += len(solvers)
+
+
+    if count == 0:
+        raise RuntimeError('Nothing found to export')
 
     if file_path is None:
         sn = m.file(sn=True, q=True)
@@ -156,16 +177,24 @@ def save(file_path=None, strip_marker=None, strip_joint=None):
     return file_path
 
 
+def standalone(c3d, peel_json):
+    cmd = "M:\\bin\\peelsolve.exe"
+    name = os.path.splitext(os.path.split(c3d)[1])[0]
+    out = tempfile.mkdtemp(prefix='peelsolve_' + name)
+    proc = subprocess.Popen([cmd, c3d, peel_json, out], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    out, err = proc.communicate()
+    print(out)
+    print(err)
+    return out
+
 def serialize(root, strip_marker=None, strip_joint=None):
     """ serialize the solve settings for the given root node """
-
-    all_data = {}
 
     active_list = []
 
     # Active Markers
 
-    for activeMarker in m.peelSolve(s=root, la=True):
+    for activeMarker in m.peelSolve(s=root, la=True, ns=True):
 
         marker_name = activeMarker
         if '|' in marker_name: marker_name = marker_name.split('|')[-1]
@@ -183,17 +212,19 @@ def serialize(root, strip_marker=None, strip_joint=None):
 
         parent = m.listRelatives(activeMarker, p=True)[0]
 
-        data = {'marker':      strip_left(marker_name, strip_marker),
-                'marker_raw':  marker_name,
+        data = {'name':      strip_left(marker_name, strip_marker),
+                'name_raw':  marker_name,
                 'source':      strip_left(source, strip_marker),
                 'source_raw':  source,
                 'parent':      strip_left(parent, strip_joint),
                 'parent_raw':  parent,
                 'peelType':    m.getAttr(activeMarker + ".peelType"),
                 'tWeight':     m.getAttr(activeMarker + ".translationWeight"),
-                'rWeight':     m.getAttr(activeMarker + ".rotationWeight"),
                 'translation': m.getAttr(activeMarker + ".t")[0],
-                'rotation':    m.getAttr(activeMarker + ".r")[0]}
+                'rotation':    [math.radians(i) for i in m.getAttr(activeMarker + ".r")[0]]}
+
+        if m.objExists(activeMarker + ".rotationWeight"):
+            data['rWeight'] = m.getAttr(activeMarker + ".rotationWeight")
 
         if m.objExists(source):
             rigidbody_node = rigidbody.from_active(source)
@@ -223,15 +254,23 @@ def serialize(root, strip_marker=None, strip_joint=None):
 
         active_list.append(data)
 
+    # Passive Joints
+
     passive_list  = []
     for passiveTransform in m.peelSolve(s=root, lp=True, ns=True):
+
+        joint_obj = joint.PeelJoint(passiveTransform)
 
         data = {
             'longName' : passiveTransform,
             'name': passiveTransform.split('|')[-1],
             'translation' : m.getAttr(passiveTransform + ".t")[0],
-            'rotation': m.getAttr(passiveTransform + ".t")[0],
-            'scale' : m.getAttr(passiveTransform + ".s")[0],
+            'rotation': [math.radians(i) for i in m.getAttr(passiveTransform + ".r")[0]],
+            'preMatrix' : matrix.asArray(joint_obj.pre),
+            'postMatrix' : matrix.asArray(joint_obj.post),
+            'dofx': not m.getAttr(passiveTransform + ".rx", l=True),
+            'dofy': not m.getAttr(passiveTransform + ".ry", l=True),
+            'dofz': not m.getAttr(passiveTransform + ".rz", l=True)
         }
 
         if passiveTransform == root:
@@ -381,8 +420,38 @@ def import_solved(in_path):
     
     for i in range(len(header)):
         node, addr = header[i].split(".")
-        dag.apply_curve(node, addr, frame_data[i])
+        try:
+            dag.apply_curve(node, addr, frame_data[i])
+        except RuntimeError as e:
+            print str(e)
         
     print("Import complete")
 
     return header
+
+def test(root):
+    nodes = {}
+
+    for i in m.peelSolve(s=root, ns=True, lp=True):
+        name = i
+        if '|' in i:
+            name = i.split('|')[-1]
+        parent = None
+        if not i.endswith(root):
+            parent = m.listRelatives(i, p=True)[0]
+        print(name, parent)
+
+        jj = joint.PeelJoint(i)
+        matrix.createLocator("x_" + name, jj.asMatrix())
+        for ch in ["tx", "ty", "tz", "rx", "ry", "rz"]:
+            m.setAttr("x_" + name + "." + ch, l=True)
+
+        nodes.push_back((name, parent))
+
+    for i, parent in nodes:
+        print
+        i, parent
+        if parent:
+            m.parent("x_" + i, "x_" + parent)
+
+

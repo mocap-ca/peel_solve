@@ -22,6 +22,7 @@
 import maya.OpenMaya as om
 import maya.OpenMayaAnim as oma
 import maya.cmds as m
+import sys
 
 """ Collection of wrappers for common Dag based OpenMaya calls """
 
@@ -182,3 +183,28 @@ def apply_curve(node, attr, data, stepped=False):
     fn, dgmod = x
     fn.addKeys(times, om.MDoubleArray(su.asDoublePtr(), len(v)), oma.MFnAnimCurve.kTangentGlobal, tt)
     dgmod.doIt()
+
+
+
+def show(x) :
+    rtd = 57.2957795
+    t = type(x)
+
+    if t is om.MTransformationMatrix :
+        x = x.asMatrix()
+        t = type(x)
+        print(str(t))
+
+    if t is om.MMatrix :
+        ret = ""
+        for u in range(0, 4):
+            for v in range(0, 4):
+                ret += "%06.4f   " % om.MScriptUtil.getDoubleArrayItem(x[u], v)
+            ret += "\n"
+        return ret
+
+    if t is om.MVector : return "%f %f %f" % (x.x, x.y, x.z)
+    if t is om.MEulerRotation : return "%f %f %f" % ((x.x * rtd), (x.y * rtd), (x.z * rtd))
+    if t is om.MQuaternion : return show(x.asEulerRotation())
+    if x is None : return "None"
+    return "Unknown type: " + str(t)
