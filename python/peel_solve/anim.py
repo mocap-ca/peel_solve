@@ -90,9 +90,12 @@ def offset_animation(value, prefix=None):
     m.playbackOptions(min=start+value, max=end+value)
 
 
-def trim_anim():
+def trim_anim(nodes=None):
 
     """ remove all joint or camera animation outside of the playback min/max range """
+
+    if nodes is None:
+        nodes = ls()
 
     start = m.playbackOptions(q=True, min=True)
     end = m.playbackOptions(q=True, max=True)
@@ -100,10 +103,10 @@ def trim_anim():
     a, b = time_range()
 
     if b > end:
-        m.cutKey(j, time=(b, end))
+        m.cutKey(nodes, time=(b, end))
 
     if a < start:
-        m.cutKey(j, time=(a, start))
+        m.cutKey(nodes, time=(a, start))
 
 
 def zero_selected(first_frame=1):

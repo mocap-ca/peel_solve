@@ -83,7 +83,7 @@ def load_c3d(c3d_file=None, merge=True, timecode=True, convert=False, debug=Fals
     # paths _must_ have forward slashes for maya's file command
     c3d_file = c3d_file.replace('\\', '/')
 
-    root = roots.find_optical_root()
+    root = roots.optical()
 
     if merge:
         if root is None:
@@ -155,11 +155,11 @@ def load_fbx(fbxfile, subjects, merge=True):
 
                 # Rename the top node
 
-                root = roots.find_optical_root()
+                root = roots.optical()
                 if root:
                     # rename the root
                     print("Renaming root node: " + str(root) + " to:  " + topname)
-                    m.rename(roots.find_optical_root(), topname)
+                    m.rename(roots.optical(), topname)
 
         else:
             for i in m.listRelatives(actor, s=False, c=True, type="transform"):

@@ -22,7 +22,9 @@
 import maya.cmds as m
 import maya.OpenMaya as om
 import math
-
+import json
+import subprocess
+import os.path
 
 def fps():
     second = om.MTime(1.0, om.MTime.kSeconds)
@@ -82,4 +84,111 @@ def set_range(dot):
         m.playbackOptions(aet=aet)
 
 
+def c3d_start(optical_root):
+    hh = m.getAttr(optical_root + ".C3dTimecodeH")
+    mm = m.getAttr(optical_root + ".C3dTimecodeM")
+    ss = m.getAttr(optical_root + ".C3dTimecodeS")
+    ff = m.getAttr(optical_root + ".C3dTimecodeF")
 
+    first_field = m.getAttr(optical_root + ".C3dFirstField")
+    c3d_rate = m.getAttr(optical_root + ".C3dRate")
+
+    tc_standard = m.getAttr(optical_root + ".C3dTimecodeStandard")
+
+    start = int(ff) + int(ss) * tc_standard + int(mm) * 60 * tc_standard + int(hh) * 60 * 60 * tc_standard
+    print("C3D start frame: %02d:%02d:%02d:%02d" % (hh, mm, ss, ff))
+    print("First Field: %d " % first_field)
+    print("Start frame: %d @ %d fps" % (start, tc_standard))
+    offset = first_field * tc_standard / c3d_rate
+    print("Offset: %d" % offset)
+    print("   = %d * %d / %d" % (first_field, tc_standard, c3d_rate))
+    return start + first_field * tc_standard / c3d_rate, tc_standard
+
+
+def mov_start(file_path, rate=None):
+
+    if not os.path.isfile(file_path):
+        raise RuntimeError("Could not find: " + file_path)
+
+    cmd = ["M:\\bin\\ffprobe.exe", "-print_format", "json", "-show_streams", file_path]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    out, err = proc.communicate()
+    data = json.loads(out)
+    tc = None
+
+    if 'streams' not in data:
+        print(json)
+        raise RuntimeError("Invalid file: " + str(file_path))
+
+    for i in data['streams']:
+        if 'tags' not in i: continue
+        if 'timecode' not in i['tags']: continue
+        if rate is None and 'r_frame_rate' in i and i['r_frame_rate'] != "0/0":
+            rate = i['r_frame_rate']
+            if '/' in rate:
+                sp = rate.split('/')
+                if sp[1] != "0":
+                    rate = float(sp[0]) / float(sp[1])
+
+        tc = i['tags']['timecode']
+
+    if tc is None:
+        raise RuntimeError("No timecode")
+
+    hh, mm, ss, ff = tc.split(':')
+
+    current = int(ff) + int(ss) * rate + int(mm) * rate * 60 + int(hh) * 60 * 60 * rate
+    print("Video Timcode:     %s at %s" % (tc, rate))
+    print("Video start frame: %d at %s" % (current, rate))
+
+    return current, rate
+
+
+def timecode(value):
+
+    """ get the timecode for a given frame# """
+
+    fps = None
+    time_mode = m.currentUnit(time=True, q=True)
+    if time_mode == "120fps": fps = 120
+    if time_mode == "ntscf": fps = 60
+    if fps is None:
+        raise RuntimeError("Invalid FPS - only 120 or 60 supported")
+
+    frames = float(value) % fps
+    value = int(value)
+
+    if time_mode == "120fps":
+        frames /= 4
+    else:
+        frames /= 2
+
+    value = int(((value - frames) / fps))
+    secs = value % 60
+    value = int(((value - secs) / 60))
+    mins = value % 60
+    hours = int(((value - mins) / 60))
+
+    return hours, mins, secs, frames
+
+    # return "%02d:%02d:%02d:%02d" % (hours, mins, secs, frames)
+
+
+def tc_node():
+
+    """ Creates a timecode node in the scene based on the current frame rate and frame rangge """
+
+    if m.objExists("TIMECODE"):
+        m.delete("TIMECODE")
+
+    tc = m.group(name="TIMECODE", em=True)
+
+    st = m.playbackOptions(q=True, min=True)
+    en = m.playbackOptions(q=True, max=True)
+
+    for i in range(int(st), int(en)):
+        hh, mm, ss, ff = timecode(i)
+        m.setKeyframe(tc, at="tx", v=hh, t=(i))
+        m.setKeyframe(tc, at="ty", v=mm, t=(i))
+        m.setKeyframe(tc, at="tz", v=ss, t=(i))
+        m.setKeyframe(tc, at="rx", v=ff, t=(i))

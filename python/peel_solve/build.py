@@ -27,7 +27,7 @@ import os
 
 def scale_hips():
 
-    s = m.getAttr(roots.find_optical_root() + ".sx")
+    s = m.getAttr(roots.optical() + ".sx")
     m.scaleKey(roots.skel_root(), valueScale=1 / s, at=["tx", "ty", "tz"])
 
 
@@ -114,7 +114,7 @@ def move_to_origin(prefix, hips):
 
     m.currentTime( start + (end-start) / 2)
 
-    root = roots.find_optical_root()
+    root = roots.optical()
     m.setAttr(root + ".t", 0, 0, 0)
     m.setAttr(root + ".r", 0, 0, 0)
 
@@ -133,7 +133,7 @@ def move_to_origin(prefix, hips):
 
 def set_range():
 
-    root = roots.find_optical_root()
+    root = roots.optical()
     if not root:
         print("Could not find root when setting range")
         return None, None

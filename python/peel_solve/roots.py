@@ -69,8 +69,10 @@ def consolidate_roots():
 
         m.setAttr('peelSolveOptions.rootNodes', len(all_roots), *list(all_roots), type='stringArray')
 
-
 def find_optical_root():
+    raise RuntimeError("DEPRECATED peel_solve.roots.find_optical_root() - use optical()")
+
+def optical():
 
     """ Returns the best guess for the mocap (optical) root """
 

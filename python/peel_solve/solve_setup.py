@@ -140,7 +140,7 @@ def save(file_path=None, strip_marker=None, strip_joint=None, rb=True, skel=True
     @param strip_joint: prefix to remove from the joint names
     """
 
-    all_roots = roots.ls()
+    all_roots = roots.ls(extend=False)
     if not all_roots:
         raise RuntimeError("Could not determine root")
 
@@ -152,11 +152,16 @@ def save(file_path=None, strip_marker=None, strip_joint=None, rb=True, skel=True
     ret = {}
     if rb:
         ret['rigidbodies'] = rigidbody.serialize()
+        print("Exported %d rigidbodies" % len(ret['rigidbodies']))
         count += len(ret['rigidbodies'])
 
     if skel:
         solvers = {}
         for root in all_roots:
+            if not m.objExists(root):
+                print("Could not find root: " + str(root))
+                continue
+            print("Saving root: " + root)
             solvers[root] = serialize(root, strip_marker, strip_joint)
         ret['solvers'] = solvers
         count += len(solvers)
