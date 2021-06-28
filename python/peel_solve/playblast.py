@@ -93,6 +93,9 @@ class PlayBlast:  # provide shot name, eg: "000246"
             self.shot_name = shot_name + "_v" + str(new_version)
             shot_folder = shot_folder + "_v" + str(new_version)
         os.mkdir(shot_folder)
+
+        self.views_imagefiles_dict = {}
+
         for view in self.cameras.keys():
 
             self.setup_camera(view)

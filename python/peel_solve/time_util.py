@@ -85,14 +85,16 @@ def set_range(dot):
 
 
 def c3d_start(optical_root):
+
+    # Get the timecode value
     hh = m.getAttr(optical_root + ".C3dTimecodeH")
     mm = m.getAttr(optical_root + ".C3dTimecodeM")
     ss = m.getAttr(optical_root + ".C3dTimecodeS")
     ff = m.getAttr(optical_root + ".C3dTimecodeF")
 
+    # Get the first field offset
     first_field = m.getAttr(optical_root + ".C3dFirstField")
     c3d_rate = m.getAttr(optical_root + ".C3dRate")
-
     tc_standard = m.getAttr(optical_root + ".C3dTimecodeStandard")
 
     start = int(ff) + int(ss) * tc_standard + int(mm) * 60 * tc_standard + int(hh) * 60 * 60 * tc_standard
@@ -146,7 +148,7 @@ def mov_start(file_path, rate=None):
 
 def timecode(value):
 
-    """ get the timecode for a given frame# """
+    """ get the timecode for a given frame# at 30fps """
 
     fps = None
     time_mode = m.currentUnit(time=True, q=True)
@@ -176,7 +178,7 @@ def timecode(value):
 
 def tc_node():
 
-    """ Creates a timecode node in the scene based on the current frame rate and frame rangge """
+    """ Creates a timecode node in the scene based on the current frame range """
 
     if m.objExists("TIMECODE"):
         m.delete("TIMECODE")
@@ -192,3 +194,9 @@ def tc_node():
         m.setKeyframe(tc, at="ty", v=mm, t=(i))
         m.setKeyframe(tc, at="tz", v=ss, t=(i))
         m.setKeyframe(tc, at="rx", v=ff, t=(i))
+
+
+def frame(timecode, fps=30):
+    sp = timecode.split(':')
+    hh, mm, ss, ff = [int(i) for i in sp]
+    return hh * 60 * 60 * fps + mm * 60 * fps + ss * fps + ff

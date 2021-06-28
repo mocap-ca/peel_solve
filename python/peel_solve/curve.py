@@ -47,19 +47,28 @@ class FCurve(object):
             self.attr = attr
         self.data = {}
 
-    def fetch(self, sl=False):
+    def fetch(self, sl=False, use_api=False):
         """ get the data from maya """
 
         if self.node is None or self.attr is None:
             raise ValueError("Invalid parameters for node/attr")
 
-        node_attr = self.node + '.' + self.attr
-        k = m.keyframe(node_attr, q=True, sl=sl)
-        v = m.keyframe(node_attr, q=True, vc=True, sl=sl)
-        if k is None or v is None:
-            print("no keys")
-            return
-        self.data = dict(zip(k, v))
+        if use_api:
+            curve = dag.anim_curve(self.node, self.attr, create=False)
+            n = curve.numKeys()
+            for i in range(n):
+                v = curve.value(i)
+                t = curve.time(i).value()
+                self.data[t] = v
+        else:
+
+            node_attr = self.node + '.' + self.attr
+            k = m.keyframe(node_attr, q=True, sl=sl)
+            v = m.keyframe(node_attr, q=True, vc=True, sl=sl)
+            if k is None or v is None:
+                print("no keys")
+                return
+            self.data = dict(zip(k, v))
 
     def apply(self, stepped=False, use_api=False, create=False):
 
@@ -433,7 +442,7 @@ def zero(nodes, start_frame=0):
         for curve_node in conn:
             channel = m.listConnections(curve_node, d=True, p=True)[0]
             curve_obj = FCurve(channel)
-            curve_obj.fetch()
+            curve_obj.fetch(use_api=True)
             if start is None or min(curve_obj.data.keys()) < start:
                 start = min(curve_obj.data.keys())
             if end is None or max(curve_obj.data.keys()) > end:
