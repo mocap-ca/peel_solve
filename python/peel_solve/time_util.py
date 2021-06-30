@@ -84,26 +84,32 @@ def set_range(dot):
         m.playbackOptions(aet=aet)
 
 
-def c3d_start(optical_root):
-
+def timecode_start(optical_root):
     # Get the timecode value
+    # This is when the data was recorded
     hh = m.getAttr(optical_root + ".C3dTimecodeH")
     mm = m.getAttr(optical_root + ".C3dTimecodeM")
     ss = m.getAttr(optical_root + ".C3dTimecodeS")
     ff = m.getAttr(optical_root + ".C3dTimecodeF")
+    tc_standard = m.getAttr(optical_root + ".C3dTimecodeStandard")
+    start = int(ff) + int(ss) * tc_standard + int(mm) * 60 * tc_standard + int(hh) * 60 * 60 * tc_standard
+    # print("C3D start frame: %02d:%02d:%02d:%02d" % (hh, mm, ss, ff))
+    return start, tc_standard
+
+
+def c3d_start(optical_root):
+
+    start, tc_standard = timecode_start()
 
     # Get the first field offset
     first_field = m.getAttr(optical_root + ".C3dFirstField")
     c3d_rate = m.getAttr(optical_root + ".C3dRate")
-    tc_standard = m.getAttr(optical_root + ".C3dTimecodeStandard")
+    offset_seconds = first_field / c3d_rate
+    tc_offset = offset_seconds * tc_standard
 
-    start = int(ff) + int(ss) * tc_standard + int(mm) * 60 * tc_standard + int(hh) * 60 * 60 * tc_standard
-    print("C3D start frame: %02d:%02d:%02d:%02d" % (hh, mm, ss, ff))
     print("First Field: %d " % first_field)
     print("Start frame: %d @ %d fps" % (start, tc_standard))
-    offset = first_field * tc_standard / c3d_rate
-    print("Offset: %d" % offset)
-    print("   = %d * %d / %d" % (first_field, tc_standard, c3d_rate))
+    print("Offset: %d" % tc_offset)
     return start + first_field * tc_standard / c3d_rate, tc_standard
 
 
