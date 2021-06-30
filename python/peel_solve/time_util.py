@@ -99,7 +99,7 @@ def timecode_start(optical_root):
 
 def c3d_start(optical_root):
 
-    start, tc_standard = timecode_start()
+    start, tc_standard = timecode_start(optical_root)
 
     # Get the first field offset
     first_field = m.getAttr(optical_root + ".C3dFirstField")
@@ -206,3 +206,15 @@ def frame(timecode, fps=30):
     sp = timecode.split(':')
     hh, mm, ss, ff = [int(i) for i in sp]
     return hh * 60 * 60 * fps + mm * 60 * fps + ss * fps + ff
+
+
+def time_offset(tc_base=30):
+    t = m.currentTime(q=True)
+
+    hh = m.getAttr("TIMECODE.tx")
+    mm = m.getAttr("TIMECODE.ty")
+    ss = m.getAttr("TIMECODE.tz")
+    ff = m.getAttr("TIMECODE.rx")
+
+    frame = (hh * 60 * 60 + mm * 60 + ss) * tc_base + ff
+    return frame - t * 30 / fps()

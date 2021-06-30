@@ -95,7 +95,7 @@ class SolveTemplates(QtWidgets.QDialog):
         print(first, start, end)
         print((start - first - offset) * 4, (end - first - offset) * 4)
 
-        
+
 
 
 
