@@ -3,19 +3,23 @@ from maya import OpenMayaUI as omui
 import maya.cmds as m
 from shiboken2 import wrapInstance
 from peel_solve import time_util, roots
+import math
 
-class SolveTemplates(QtWidgets.QDialog):
-    def __init__(self):
+
+class TimeRanges(QtWidgets.QDialog):
+    def __init__(self, parent=None):
         """ The initialization includes setting up the UI framework for the tool window, which asks the user
         for the c3d files, as well as the start and end frames."""
-        pointer = omui.MQtUtil.mainWindow()
-        parent = wrapInstance(long(pointer), QtWidgets.QWidget)
-        super(SolveTemplates, self).__init__(parent)
+
+        if parent is None:
+            pointer = omui.MQtUtil.mainWindow()
+            parent = wrapInstance(long(pointer), QtWidgets.QWidget)
+        super(TimeRanges, self).__init__(parent)
 
         layout = QtWidgets.QVBoxLayout()
 
         self.ranges = QtWidgets.QTableWidget()
-        self.ranges.setColumnCount(4)
+        self.ranges.setColumnCount(3)
         self.ranges.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.ranges.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.ranges.cellDoubleClicked.connect(self.select_event)
@@ -46,11 +50,11 @@ class SolveTemplates(QtWidgets.QDialog):
 
         self.setLayout(layout)
 
-        self.resize(700, 400)
+        self.resize(500, 250)
 
-        self.populate(435)
+        self.populate()
 
-    def populate(self, shot=None):
+    def populate(self):
         optical_root = roots.optical()
         self.frame_start.setText(str(time_util.c3d_start(optical_root)))
 
@@ -67,38 +71,36 @@ class SolveTemplates(QtWidgets.QDialog):
 
         self.tc_start.setText("%02d:%02d:%02d:%02d" % (hh, mm, ss, ff))
 
-        row = 0
-        with open(r'M:\CLIENTS\HOM\dog\outgoing\20210629_tracked_orders\ranges.txt') as f:
-            for line in f:
-                print(line)
-                sp = line.rstrip().split('\t')
-                if len(sp) == 4:
-                    if shot is not None and int(sp[0]) != shot:
-                        continue
-                    self.ranges.setRowCount(row + 1)
-                    for col, val in enumerate(sp):
-                        self.ranges.setItem(row, col, QtWidgets.QTableWidgetItem(val))
-                    row += 1
-
-                else:
-                    print(len(sp), sp)
+    def add_range(self, name, start, end):
+        row = self.ranges.rowCount()
+        self.ranges.setRowCount(row+1)
+        self.ranges.setItem(row, 0, QtWidgets.QTableWidgetItem(name))
+        self.ranges.setItem(row, 1, QtWidgets.QTableWidgetItem(start))
+        self.ranges.setItem(row, 2, QtWidgets.QTableWidgetItem(end))
 
     def select_event(self, row):
+
         tc_rate = float(self.tc_rate.text())
-        first = time_util.frame(str(self.tc_start.text()), tc_rate)
-        start = time_util.frame(str(self.ranges.item(row, 2).text()), tc_rate)
-        end = time_util.frame(str(self.ranges.item(row, 3).text()), tc_rate)
 
-        offset = float(self.tc_offset.text()) * tc_rate
+        c3d_start = time_util.c3d_start(roots.optical())
 
+        start_tc = time_util.Timecode(str(self.ranges.item(row, 1).text()), tc_rate)
+        end_tc = time_util.Timecode(str(self.ranges.item(row, 2).text()), tc_rate)
 
-        print(first, start, end)
-        print((start - first - offset) * 4, (end - first - offset) * 4)
+        print("Start:  " + start_tc.info())
+        print("End:    " + end_tc.info())
+        print("Offset: " + c3d_start.info())
 
+        a = start_tc - c3d_start
+        b = end_tc - c3d_start
 
+        a.set_rate(time_util.fps())
+        b.set_rate(time_util.fps())
 
+        print("Start: " + a.info())
+        print("End:   " + b.info())
 
-
+        m.playbackOptions(min=math.floor(a.frame()), max=math.ceil(b.frame()))
 
 
 INSTANCE = None
@@ -107,6 +109,6 @@ def show():
     """ Create the gui if it doesn't exist, or show if it does """
     global INSTANCE
     if not INSTANCE:
-        INSTANCE = SolveTemplates()
+        INSTANCE = TimeRanges()
     INSTANCE.show()
     return INSTANCE

@@ -26,6 +26,98 @@ import json
 import subprocess
 import os.path
 
+
+class Timecode(object):
+    def __init__(self, value=None, rate=None, fraction=0.0):
+        self.h = None
+        self.m = None
+        self.s = None
+        self.f = None
+        self.fraction = fraction
+        if rate is not None:
+            self.rate = float(rate)
+        else:
+            self.rate = None
+
+        if isinstance(value, Timecode):
+            self.h = value.h
+            self.m = value.m
+            self.s = value.s
+            self.f = value.f
+            self.fraction = value.fraction
+            self.rate = value.rate
+
+        if rate is not None:
+            self.rate = float(rate)
+            if isinstance(value, str):
+                self.set_timecode(value)
+
+            if isinstance(value, float):
+                self.set_frame(value)
+
+    def set_timecode(self, value):
+
+        if not isinstance(value, str):
+            raise RuntimeError("Invalid value passed to set_timecode: " + str(value))
+
+        if ':' not in value:
+            raise ValueError("Invalid timecode string: " + value)
+        sp = value.split(':')
+        if len(sp) != 4:
+            raise ValueError("Cannot parse timecode: " + value)
+
+        self.h, self.m, self.s, self.f = [int(i) for i in sp]
+
+    def set_frame(self, value):
+
+        if not isinstance(value, float):
+            raise RuntimeError("Invalid value passed to set_frame: " + str(value))
+
+        self.f = value % self.rate
+        value = (value - self.f) / self.rate
+        self.s = value % 60
+        value = (value - self.s) / 60
+        self.m = value % 60
+        self.h = (value - self.m) / 60
+
+    def __str__(self):
+        return "%02d:%02d:%02d:%02d" % (self.h, self.m, self.s, self.f)
+
+    def info(self):
+        ret = str(self) + "  Fps: " + str(self.rate)
+        if self.fraction is not None:
+            ret += "  Fraction: %f" % self.fraction
+        return ret
+
+    def frame(self):
+        ret = self.f
+        ret += self.s * self.rate
+        ret += self.m * self.rate * 60
+        ret += self.h * self.rate * 60 * 60
+        return float(ret) + self.fraction
+
+    def set_rate(self, rate):
+        if rate == self.rate:
+            return
+
+        scaled = self.frame() * float(rate) / self.rate
+        self.fraction = scaled % 1
+        self.rate = rate
+        self.set_frame(scaled // 1)
+
+    def __add__(self, other):
+        t = Timecode(other)
+        t.set_rate(self.rate)
+        t.set_frame(self.frame() + t.frame())
+        return t
+
+    def __sub__(self, other):
+        t = Timecode(other)
+        t.set_rate(self.rate)
+        t.set_frame(self.frame() - t.frame())
+        return t
+
+
 def fps():
     second = om.MTime(1.0, om.MTime.kSeconds)
     return second.asUnits(om.MTime().uiUnit())
@@ -84,35 +176,6 @@ def set_range(dot):
         m.playbackOptions(aet=aet)
 
 
-def timecode_start(optical_root):
-    # Get the timecode value
-    # This is when the data was recorded
-    hh = m.getAttr(optical_root + ".C3dTimecodeH")
-    mm = m.getAttr(optical_root + ".C3dTimecodeM")
-    ss = m.getAttr(optical_root + ".C3dTimecodeS")
-    ff = m.getAttr(optical_root + ".C3dTimecodeF")
-    tc_standard = m.getAttr(optical_root + ".C3dTimecodeStandard")
-    start = int(ff) + int(ss) * tc_standard + int(mm) * 60 * tc_standard + int(hh) * 60 * 60 * tc_standard
-    # print("C3D start frame: %02d:%02d:%02d:%02d" % (hh, mm, ss, ff))
-    return start, tc_standard
-
-
-def c3d_start(optical_root):
-
-    start, tc_standard = timecode_start(optical_root)
-
-    # Get the first field offset
-    first_field = m.getAttr(optical_root + ".C3dFirstField")
-    c3d_rate = m.getAttr(optical_root + ".C3dRate")
-    offset_seconds = first_field / c3d_rate
-    tc_offset = offset_seconds * tc_standard
-
-    print("First Field: %d " % first_field)
-    print("Start frame: %d @ %d fps" % (start, tc_standard))
-    print("Offset: %d" % tc_offset)
-    return start + first_field * tc_standard / c3d_rate, tc_standard
-
-
 def mov_start(file_path, rate=None):
 
     if not os.path.isfile(file_path):
@@ -128,6 +191,8 @@ def mov_start(file_path, rate=None):
         print(json)
         raise RuntimeError("Invalid file: " + str(file_path))
 
+    print(data)
+
     for i in data['streams']:
         if 'tags' not in i: continue
         if 'timecode' not in i['tags']: continue
@@ -138,48 +203,17 @@ def mov_start(file_path, rate=None):
                 if sp[1] != "0":
                     rate = float(sp[0]) / float(sp[1])
 
-        tc = i['tags']['timecode']
+        tc = str(i['tags']['timecode'])
 
     if tc is None:
         raise RuntimeError("No timecode")
 
-    hh, mm, ss, ff = tc.split(':')
+    if rate is None:
+        raise RuntimeError("Could not determine frame rate for movie: " + str(file_path))
 
-    current = int(ff) + int(ss) * rate + int(mm) * rate * 60 + int(hh) * 60 * 60 * rate
-    print("Video Timcode:     %s at %s" % (tc, rate))
-    print("Video start frame: %d at %s" % (current, rate))
+    print("TC: " + str(tc))
 
-    return current, rate
-
-
-def timecode(value):
-
-    """ get the timecode for a given frame# at 30fps """
-
-    fps = None
-    time_mode = m.currentUnit(time=True, q=True)
-    if time_mode == "120fps": fps = 120
-    if time_mode == "ntscf": fps = 60
-    if fps is None:
-        raise RuntimeError("Invalid FPS - only 120 or 60 supported")
-
-    frames = float(value) % fps
-    value = int(value)
-
-    if time_mode == "120fps":
-        frames /= 4
-    else:
-        frames /= 2
-
-    value = int(((value - frames) / fps))
-    secs = value % 60
-    value = int(((value - secs) / 60))
-    mins = value % 60
-    hours = int(((value - mins) / 60))
-
-    return hours, mins, secs, frames
-
-    # return "%02d:%02d:%02d:%02d" % (hours, mins, secs, frames)
+    return Timecode(tc, rate)
 
 
 def tc_node():
@@ -195,26 +229,47 @@ def tc_node():
     en = m.playbackOptions(q=True, max=True)
 
     for i in range(int(st), int(en)):
-        hh, mm, ss, ff = timecode(i)
-        m.setKeyframe(tc, at="tx", v=hh, t=(i))
-        m.setKeyframe(tc, at="ty", v=mm, t=(i))
-        m.setKeyframe(tc, at="tz", v=ss, t=(i))
-        m.setKeyframe(tc, at="rx", v=ff, t=(i))
+        t = Timecode(float(st), fps())
+        m.setKeyframe(tc, at="tx", v=t.h, t=(i))
+        m.setKeyframe(tc, at="ty", v=t.m, t=(i))
+        m.setKeyframe(tc, at="tz", v=t.s, t=(i))
+        m.setKeyframe(tc, at="rx", v=t.f, t=(i))
 
 
-def frame(timecode, fps=30):
-    sp = timecode.split(':')
-    hh, mm, ss, ff = [int(i) for i in sp]
-    return hh * 60 * 60 * fps + mm * 60 * fps + ss * fps + ff
+def timecode_start(optical_root):
+    # Get the timecode value from the c3d
+    # This is when the data was recorded, it may not be the first frame of data
+    t = Timecode()
+    t.h = m.getAttr(optical_root + ".C3dTimecodeH")
+    t.m = m.getAttr(optical_root + ".C3dTimecodeM")
+    t.s = m.getAttr(optical_root + ".C3dTimecodeS")
+    t.f = m.getAttr(optical_root + ".C3dTimecodeF")
+    t.rate = m.getAttr(optical_root + ".C3dTimecodeStandard")
+    return t
 
 
-def time_offset(tc_base=30):
-    t = m.currentTime(q=True)
+def c3d_start(optical_root):
 
-    hh = m.getAttr("TIMECODE.tx")
-    mm = m.getAttr("TIMECODE.ty")
-    ss = m.getAttr("TIMECODE.tz")
-    ff = m.getAttr("TIMECODE.rx")
+    """ Get the start frame specified by the c3d file """
 
-    frame = (hh * 60 * 60 + mm * 60 + ss) * tc_base + ff
-    return frame - t * 30 / fps()
+    start_tc = timecode_start(optical_root)
+
+    # Get the first field offset
+    first_field = m.getAttr(optical_root + ".C3dFirstField")
+    c3d_rate = m.getAttr(optical_root + ".C3dRate")
+
+    return start_tc + Timecode(first_field, c3d_rate)
+
+
+def now():
+    return Timecode(m.currentTime(q=True), fps())
+
+
+def now_alt(rate):
+    t = Timecode()
+    t.h = m.getAttr("TIMECODE.tx")
+    t.m = m.getAttr("TIMECODE.ty")
+    t.s = m.getAttr("TIMECODE.tz")
+    t.f = m.getAttr("TIMECODE.rx")
+    t.rate = rate
+    return t
