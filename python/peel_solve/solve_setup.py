@@ -166,7 +166,6 @@ def save(file_path=None, strip_marker=None, strip_joint=None, rb=True, skel=True
         ret['solvers'] = solvers
         count += len(solvers)
 
-
     if count == 0:
         raise RuntimeError('Nothing found to export')
 
@@ -217,8 +216,8 @@ def serialize(root, strip_marker=None, strip_joint=None):
 
         parent = m.listRelatives(activeMarker, p=True)[0]
 
-        data = {'name':      strip_left(marker_name, strip_marker),
-                'name_raw':  marker_name,
+        data = {'name':        strip_left(marker_name, strip_marker),
+                'name_raw':    marker_name,
                 'source':      strip_left(source, strip_marker),
                 'source_raw':  source,
                 'parent':      strip_left(parent, strip_joint),
@@ -230,6 +229,9 @@ def serialize(root, strip_marker=None, strip_joint=None):
 
         if m.objExists(activeMarker + ".rotationWeight"):
             data['rWeight'] = m.getAttr(activeMarker + ".rotationWeight")
+
+        if m.objExists(activeMarker + ".peelTarget"):
+            data['target'] = m.getAttr(activeMarker + ".peelTarget")
 
         if m.objExists(source):
             rigidbody_node = rigidbody.from_active(source)

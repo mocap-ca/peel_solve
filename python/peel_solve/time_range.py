@@ -44,6 +44,10 @@ class TimeRanges(QtWidgets.QDialog):
         self.frame_start = QtWidgets.QLineEdit()
         low_bar.addWidget(self.frame_start)
 
+        self.solve_button = QtWidgets.QPushButton("Solve")
+        self.solve_button.pressed.connect(self.do_solve)
+        low_bar.addWidget(self.solve_button)
+
         low_bar.addStretch(1)
 
         layout.addItem(low_bar)
@@ -78,8 +82,7 @@ class TimeRanges(QtWidgets.QDialog):
         self.ranges.setItem(row, 1, QtWidgets.QTableWidgetItem(start))
         self.ranges.setItem(row, 2, QtWidgets.QTableWidgetItem(end))
 
-    def select_event(self, row):
-
+    def get_range(self, row):
         tc_rate = float(self.tc_rate.text())
 
         c3d_start = time_util.c3d_start(roots.optical())
@@ -100,8 +103,21 @@ class TimeRanges(QtWidgets.QDialog):
         print("Start: " + a.info())
         print("End:   " + b.info())
 
-        m.playbackOptions(min=math.floor(a.frame()), max=math.ceil(b.frame()))
+        return a.frame(), b.frame()
 
+    def select_event(self, row):
+        start, end = self.get_range(row)
+
+        m.playbackOptions(min=math.floor(start), max=math.ceil(end))
+
+    def do_solve(self):
+        for i in range(self.ranges.rowCount()):
+            row = self.ranges.item(i, 0)
+            if row.isSelected():
+                start, end = self.get_range(i)
+                print(start, end)
+
+        print("here")
 
 INSTANCE = None
 

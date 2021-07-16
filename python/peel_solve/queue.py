@@ -72,21 +72,33 @@ def do_work():
     while run_job():
         pass
 
-def test(): 
 
-    cmd = ["file -f -o \"M:/CLIENTS/HOM/dog/shots/20210617_tracked_orders/0503/0503_010-solvesetup.mb\";",
-           "currentUnit -t 120fps;",
-           "peelSolve2Run(1);",
-           "file -f -o \"M:/CLIENTS/HOM/dog/shots/20210617_tracked_orders/0503/0503_011-solved.mb\";"]
+def add_maya(src, dest, mel):
+    cmd = ["file -f -o \"%s\"" % src ]
+    if isinstance(mel, list):
+        cmd += list
+    else:
+        cmd.append(str(mel))
+    cmd.append("file -rename \"%s\"" % dest)
+    cmd.append("file -save")
 
-    script = tempfile.NamedTemporaryFile(dir=r"M:\spool\tmp", delete=False, mode="w+", suffix=".mel")
-    for line in cmd:
-        script.write(line + "\n")
-    script.close()
+    with tempfile.NamedTemporaryFile(dir=r"M:\spool\tmp", delete=False, mode="w+", suffix=".mel") as script:
+        for line in cmd:
+            script.write(line + "\n")
 
     maya_exe = r'C:\Program Files\Autodesk\Maya2020\bin\mayabatch.exe'
     add_job([maya_exe, "-script", script.name])
     do_work()
+
+
+def test():
+
+    src = r"M:/CLIENTS/HOM/dog/shots/20210617_tracked_orders/0503/0503_011-solvesetup.mb"
+    dst = r"M:/CLIENTS/HOM/dog/shots/20210617_tracked_orders/0503/0503_010-solved.mb"
+    mel = ["currentUnit -t 120fps;", "peelSolve2Run(1);"]
+    add_maya(src, dst, mel)
+
+
 
 
 if __name__ == "__main__":

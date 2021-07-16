@@ -1,3 +1,7 @@
+import os.path
+from maya import cmds
+import maya.OpenMaya as om
+import maya.OpenMayaUI as omui
 
 class PlayBlast:  # provide shot name, eg: "000246"
     def __init__(self, shot_name=None, start_frame=None, end_frame=None):
@@ -104,9 +108,9 @@ class PlayBlast:  # provide shot name, eg: "000246"
             camera_wise_folder = os.path.join(shot_folder, view)
             os.mkdir(camera_wise_folder)
             file_name = os.path.join(camera_wise_folder, shot_name + "_" + view)
-            pm.lookThru(self.cameras[view])
+            cmds.lookThru(self.cameras[view])
 
-            pm.playblast(widthHeight=(self.width, self.height),  epn=self.current_panel(),
+            cmds.playblast(widthHeight=(self.width, self.height),  epn=self.current_panel(),
                          filename=file_name, showOrnaments=self.show_ornaments, percent=self.percent,
                          format=self.format, compression=self.compression, framePadding=self.padding,
                          startTime=self.start_frame, endTime=self.end_frame, viewer=False)
@@ -151,7 +155,7 @@ class PlayBlast:  # provide shot name, eg: "000246"
             v_index = temp_folder.rfind("_v")
             if v_index == -1 or not temp_folder.startswith(os.path.split(folder)[-1]):
                 continue
-            folder_version = temp_folder[v_inde x +2:]
+            folder_version = temp_folder[v_index +2:]
             if not folder_version.isdigit():
                 continue
             folder_version = int(folder_version)

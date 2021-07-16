@@ -87,6 +87,7 @@ class Timecode(object):
         ret = str(self) + "  Fps: " + str(self.rate)
         if self.fraction is not None:
             ret += "  Fraction: %f" % self.fraction
+        ret += "   Frame: %d" % self.frame()
         return ret
 
     def frame(self):
@@ -229,7 +230,7 @@ def tc_node():
     en = m.playbackOptions(q=True, max=True)
 
     for i in range(int(st), int(en)):
-        t = Timecode(float(st), fps())
+        t = Timecode(float(i), fps())
         m.setKeyframe(tc, at="tx", v=t.h, t=(i))
         m.setKeyframe(tc, at="ty", v=t.m, t=(i))
         m.setKeyframe(tc, at="tz", v=t.s, t=(i))
@@ -258,7 +259,7 @@ def c3d_start(optical_root):
     first_field = m.getAttr(optical_root + ".C3dFirstField")
     c3d_rate = m.getAttr(optical_root + ".C3dRate")
 
-    return start_tc + Timecode(first_field, c3d_rate)
+    return start_tc + Timecode(first_field-1, c3d_rate)
 
 
 def now():

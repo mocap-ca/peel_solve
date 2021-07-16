@@ -24,13 +24,16 @@ import maya.cmds as m
 from peel_solve import roots, node_list
 
 
-def line(position, parent):
+def line(position, parent, attr_type=1):
 
     """ Create a line locator at the location of position and parent it to parent
     returns (transform, shape) """
 
     if len(position) == 0:
         raise ValueError("Invalid source node for line locator")
+
+    if not m.objExists(parent):
+        raise ValueError("Could not find parent: " + str(parent))
 
     node = position
     if ':' in node:
@@ -78,6 +81,29 @@ def line(position, parent):
 
     m.setAttr(ll_shape + ".size", size)
 
+    tw = 0.0
+    rw = 0.0
+
+    if attr_type is not None:
+
+        add_type_attr(ll_transform, attr_type)
+
+        if attr_type in [1, 3, 4, 5]:
+            tw = 1.0
+
+        if attr_type in [2, 3]:
+            rw = 1.0
+
+        add_matrix_attr(ll_transform, "peelTarget")
+        add_attr(ll_transform, "translationWeight", tw)
+        add_attr(ll_transform, "rotationWeight", rw)
+
+        m.connectAttr(ll_transform + ".translationWeight", ll_shape + ".tWeight")
+        m.connectAttr(ll_transform + ".rotationWeight", ll_shape + ".rWeight")
+
+        m.connectAttr(position + ".worldMatrix", node + ".peelTarget")
+
+    m.select(ll_transform, r=True)
     return ll_transform, ll_shape
 
 
@@ -120,6 +146,12 @@ def add_vector_attr(obj, attr, x, y, z):
         m.setAttr(obj + "." + attr + "Z", lock=False)
 
 
+def add_type_attr(obj, value):
+    values = ["passive", "activeTrans", "activeRot", "activeBoth", "sliding", "aim", "line"]
+    add_enum_attr(obj, "peelType", values, value)
+    m.setAttr(obj + ".peelType", value)
+
+
 def add_enum_attr(obj, attr, values, value):
     if m.objExists(obj + "." + attr):
         return
@@ -141,71 +173,42 @@ def remove_attr(obj, attr):
         m.deleteAttr(obj, at=attr)
 
 
-def add_attributes(attr_type, node=None):
+def add_joint_attributes(joint=None):
 
-    if node is None:
+    if joint is None:
         selection = m.ls(sl=True)
         if len(selection) != 1:
             raise RuntimeError("Select one thing to add the attributes")
 
         node = selection[0]
 
-    if not m.objExists(node):
-        raise RuntimeError("Could not find: " + str(node))
+    if not m.objExists(joint):
+        raise RuntimeError("Could not find joint: " + str(joint))
 
     d_attr = ["rotStab", "rotStiff", "lendof", "lengthStiff", "transStiff", "rotShareVal",
               "rotShared", "rotationError", "stabilityError", "translationStiffnessError",
               "rotationStiffnessError", "lengthStiffnessError"]
 
     # Check if this is a root node
-    root = node in roots.ls()
+    root = joint in roots.ls()
 
-    values = ["passive", "activeTrans", "activeRot", "activeBoth", "sliding", "aim", "line"]
-    add_enum_attr(node, "peelType", values, attr_type)
-    m.setAttr(node + ".peelType", attr_type)
+    add_type_attr(joint, 0)
 
-    level = 100 # m_cmds.peelSolve(level=True)
+    tx = m.getAttr(joint + ".translateX")
+    ty = m.getAttr(joint + ".translateY")
+    tz = m.getAttr(joint + ".translateZ")
 
-    if attr_type == 0:
-        tx = m.getAttr(node + ".translateX")
-        ty = m.getAttr(node + ".translateY")
-        tz = m.getAttr(node + ".translateZ")
+    add_vector_attr(joint, "lengthAxis", tx, ty, tz)
+    add_attr(joint, "dofX", root)
+    add_attr(joint, "doxY", root)
+    add_attr(joint, "dofZ", root)
+    add_vector_attr(joint, "preferredTrans", tx, ty, tz)
 
-        if level > 99:
-            for i in d_attr:
-                add_attr(node, i, 0.0)
+    remove_attr(joint, "peelTarget")
+    remove_attr(joint, "translationWeight")
+    remove_attr(joint, "rotationWeight")
 
-            add_vector_attr(node, "lengthAxis", tx, ty, tz)
-            add_attr(node, "dofX", root)
-            add_attr(node, "doxY", root)
-            add_attr(node, "dofZ", root)
-            add_vector_attr(node, "preferredTrans", tx, ty, tz)
 
-        remove_attr(node, "peelTarget")
-        remove_attr(node, "translationWeight")
-        remove_attr(node, "rotationWeight")
-
-    else:
-
-        tw = 0.0
-        rw = 0.0
-
-        if attr_type in [1, 3, 4, 5]:
-            tw = 1.0
-
-        if attr_type in [2, 3]:
-            rw = 1.0
-
-        for i in d_attr:
-            remove_attr(node, i)
-
-        for i in ["lengthAxis", "dofX", "dofY", "dofZ", "prefferedTrans"]:
-            remove_attr(node, i)
-
-        add_matrix_attr(node, "peelTarget")
-        add_attr(node, "translationWeight", tw)
-        if level > 99:
-            add_attr(node, "rotationWeight", rw)
 
 
 def transform_attr(attr_type=1):
