@@ -240,6 +240,13 @@ def tc_node():
 def timecode_start(optical_root):
     # Get the timecode value from the c3d
     # This is when the data was recorded, it may not be the first frame of data
+
+    if optical_root is None:
+        raise RuntimeError("Invalid optical root while getting timecode start")
+
+    if not m.objExists(optical_root):
+        raise RuntimeError("Root does not exist: " + optical_root + " while getting timecode start")
+
     t = Timecode()
     t.h = m.getAttr(optical_root + ".C3dTimecodeH")
     t.m = m.getAttr(optical_root + ".C3dTimecodeM")
@@ -255,11 +262,11 @@ def c3d_start(optical_root):
 
     start_tc = timecode_start(optical_root)
 
-    # Get the first field offset
+    # Get the first field offset (first field is 1 based)
     first_field = m.getAttr(optical_root + ".C3dFirstField")
     c3d_rate = m.getAttr(optical_root + ".C3dRate")
 
-    return start_tc + Timecode(first_field-1, c3d_rate)
+    return start_tc + Timecode(first_field, c3d_rate)
 
 
 def now():

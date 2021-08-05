@@ -89,11 +89,14 @@ def ls(all=False):
             yield con[0]
 
 
-def serialize():
+def serialize(sel=None):
 
     ret = {}
 
-    for rb in ls(all=True):
+    if sel is None:
+        sel = ls(all=True)
+
+    for rb in sel:
         points = []
         for child in m.listRelatives(rb, f=True, c=True, type="transform"):
             name = child.split('|')[-1]
@@ -124,8 +127,6 @@ def save(file_path=None):
     fp.close()
 
     print(file_path.replace("/", "\\"))
-
-
 
 
 def from_active(active_node):
@@ -206,41 +207,42 @@ def unbake(nodes=None):
 
     for rbt in nodes:
 
-        src = m.listConnections(rbt + ".t")
+        src = m.listConnections(rbt + ".t", s=True, d=False)
         if src:
             for i in src:
-                print(i, m.nodeType(i))
                 if m.nodeType(i) == "rigidbodyNode":
                     m.delete(i)
 
         m.delete(rbt, channels=True)
 
-        if not m.listConnections(rbt + ".t"):
+        if m.listConnections(rbt + ".t", s=True, d=False):
+            print("Already connected: " + str(rbt))
+            continue
 
-            rbn = m.createNode("rigidbodyNode", n="rbn")
+        rbn = m.createNode("rigidbodyNode", n="rbn")
 
-            i = 0
+        i = 0
 
-            for c in m.listRelatives(rbt, c=True, type="transform", f=True):
-                if not c.endswith("_Marker"):
-                    print("Not a node: " + c)
-                    continue
+        for c in m.listRelatives(rbt, c=True, type="transform", f=True):
+            if not c.endswith("_Marker"):
+                print("Not a node: " + c)
+                continue
 
-                source = source_name(c)
+            source = source_name(c)
 
-                if m.objExists(source):
-                    print("connecting " + str(source) + " to " + c)
+            if m.objExists(source):
+                print("connecting " + str(source) + " to " + c)
 
-                    m.connectAttr(c + ".translate", rbn + ".local[%d]" % i, f=True)
-                    m.connectAttr(c + ".weight", rbn + ".weight[%d]" % i, f=True)
-                    m.connectAttr(source + ".worldMatrix", rbn + ".input[%d]" % i, f=True)
-                    i += 1
+                m.connectAttr(c + ".translate", rbn + ".local[%d]" % i, f=True)
+                m.connectAttr(c + ".weight", rbn + ".weight[%d]" % i, f=True)
+                m.connectAttr(source + ".worldMatrix", rbn + ".input[%d]" % i, f=True)
+                i += 1
 
-                else:
-                    print("Could not find source for marker: " + c)
+            else:
+                print("Could not find source for marker: " + c)
 
-            m.connectAttr(rbn + ".OutputTranslation", rbt + ".translate")
-            m.connectAttr(rbn + ".OutputRotation", rbt + ".rotate")
+        m.connectAttr(rbn + ".OutputTranslation", rbt + ".translate")
+        m.connectAttr(rbn + ".OutputRotation", rbt + ".rotate")
 
 
 def fetch(rbn):

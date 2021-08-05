@@ -2,19 +2,21 @@ from PySide2 import QtWidgets, QtCore, QtGui
 from maya import OpenMayaUI as omui
 import maya.cmds as m
 from shiboken2 import wrapInstance
-from peel_solve import time_util, roots
+from peel_solve import time_util, roots, solve
 import math
 
 
-class TimeRanges(QtWidgets.QDialog):
+
+
+
+
+class TimeRangeWidget(QtWidgets.QWidget):
+
     def __init__(self, parent=None):
         """ The initialization includes setting up the UI framework for the tool window, which asks the user
         for the c3d files, as well as the start and end frames."""
 
-        if parent is None:
-            pointer = omui.MQtUtil.mainWindow()
-            parent = wrapInstance(long(pointer), QtWidgets.QWidget)
-        super(TimeRanges, self).__init__(parent)
+        super(TimeRangeWidget, self).__init__(parent)
 
         layout = QtWidgets.QVBoxLayout()
 
@@ -44,9 +46,13 @@ class TimeRanges(QtWidgets.QDialog):
         self.frame_start = QtWidgets.QLineEdit()
         low_bar.addWidget(self.frame_start)
 
-        self.solve_button = QtWidgets.QPushButton("Solve")
+        self.solve_button = QtWidgets.QPushButton("Solve Selected")
         self.solve_button.pressed.connect(self.do_solve)
         low_bar.addWidget(self.solve_button)
+
+        self.solve_all_button = QtWidgets.QPushButton("Solve All")
+        self.solve_all_button.pressed.connect(self.do_solve_all)
+        low_bar.addWidget(self.solve_all_button)
 
         low_bar.addStretch(1)
 
@@ -58,14 +64,25 @@ class TimeRanges(QtWidgets.QDialog):
 
         self.populate()
 
+    def clear(self):
+        self.ranges.clear()
+
     def populate(self):
+        self.ranges.clear()
+        self.ranges.setRowCount(0)
+
         optical_root = roots.optical()
+        if optical_root is None:
+            self.tc_offset.setText("")
+            self.tc_rate.setText("")
+            self.tc_start.setText("")
+            return
         self.frame_start.setText(str(time_util.c3d_start(optical_root)))
 
         tc_standard = m.getAttr(optical_root + ".C3dTimecodeStandard")
         offset = m.getAttr(optical_root + ".C3dFirstField")
         rate = m.getAttr(optical_root + ".C3dRate")
-        self.tc_offset.setText(str(offset / rate))
+        self.tc_offset.setText("%.2f" % (offset / rate))
         self.tc_rate.setText(str(tc_standard))
 
         hh = m.getAttr(optical_root + ".C3dTimecodeH")
@@ -110,14 +127,33 @@ class TimeRanges(QtWidgets.QDialog):
 
         m.playbackOptions(min=math.floor(start), max=math.ceil(end))
 
-    def do_solve(self):
+    def do_solve(self, all=False):
         for i in range(self.ranges.rowCount()):
             row = self.ranges.item(i, 0)
-            if row.isSelected():
+            if all is True or row.isSelected():
                 start, end = self.get_range(i)
-                print(start, end)
+                solve.run(start=start, end=end)
 
-        print("here")
+    def do_solve_all(self):
+        self.do_solve(all=True)
+
+
+
+class TimeRanges(QtWidgets.QDialog):
+
+    def __init__(self, parent=None):
+
+        if parent is None:
+            pointer = omui.MQtUtil.mainWindow()
+            parent = wrapInstance(long(pointer), QtWidgets.QWidget)
+
+        super(TimeRanges, self).__init__(parent)
+
+        layout = QtWidgets.QVBoxLayout()
+        self.table = TimeRangeWidget()
+        layout.addWidget(self.table)
+        self.setLayout(layout)
+        self.resize(500, 250)
 
 INSTANCE = None
 

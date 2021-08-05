@@ -205,7 +205,7 @@ def run(iterations=500, inc=1, root_nodes=None, start=None, end=None):
         if end is None:
             end = m.playbackOptions(q=True, max=True)
         root_flag = ' '.join(['-s ' + i for i in root_nodes])
-        m.peelSolve(e=root_flag, st=start, end=end, inc=inc, i=iterations)
+        m.peelSolve(s=root_nodes, st=start, end=end, inc=inc, i=iterations)
     finally:
         m.refresh(su=False)
 

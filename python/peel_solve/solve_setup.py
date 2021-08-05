@@ -138,11 +138,11 @@ def save(file_path=None, strip_marker=None, strip_joint=None, rb=True, skel=True
     @param file_path: file to save the json data to, defaults to current scene path with .json extension
     @param strip_marker: prefix to remove from the marker names
     @param strip_joint: prefix to remove from the joint names
+    @param rb: list of rigidbodies to solve, or True = All, False = None
+    @param skel: list of skeleton roots to solve, or True = All, False = None
     """
 
     all_roots = roots.ls(extend=False)
-    if not all_roots:
-        raise RuntimeError("Could not determine root")
 
     if not rb and not skel:
         raise RuntimeError("Nothing to export, rb or skel were not set")
@@ -150,12 +150,16 @@ def save(file_path=None, strip_marker=None, strip_joint=None, rb=True, skel=True
     count = 0
 
     ret = {}
-    if rb:
+    if rb is True:
         ret['rigidbodies'] = rigidbody.serialize()
         print("Exported %d rigidbodies" % len(ret['rigidbodies']))
         count += len(ret['rigidbodies'])
 
-    if skel:
+    if isinstance(rb, list):
+        ret['rigidbodies'] = rigidbody.serialize(sel=rb)
+        count += len(ret['rigidbodies'])
+
+    if skel and all_roots:
         solvers = {}
         for root in all_roots:
             if not m.objExists(root):
@@ -169,27 +173,36 @@ def save(file_path=None, strip_marker=None, strip_joint=None, rb=True, skel=True
     if count == 0:
         raise RuntimeError('Nothing found to export')
 
-    if file_path is None:
-        sn = m.file(sn=True, q=True)
-        file_path = sn[:sn.rfind('.')] + ".json"
+    if file_path is not None:
+        print "Saved to: " + file_path.replace('/', '\\')
+        with open(file_path, "w") as fp:
+            json.dump(ret, fp, indent=4)
+            return file_path
+    else:
+        fd, path = tempfile.mkstemp(prefix="peelsolve")
+        with open(path, "w") as fp:
+            json.dump(ret, fp, indent=4)
+            return path
 
-    print "Saved to: " + file_path.replace('/', '\\')
-    fp = open(file_path, "w")
-    json.dump(ret, fp, indent=4)
-    fp.close()
 
-    return file_path
+def scene_path(ext):
+    sn = m.file(sn=True, q=True)
+    return sn[:sn.rfind('.')] + "." + ext
 
 
-def standalone(c3d, peel_json):
-    cmd = "M:\\bin\\peelsolve.exe"
-    name = os.path.splitext(os.path.split(c3d)[1])[0]
-    out = tempfile.mkdtemp(prefix='peelsolve_' + name)
-    proc = subprocess.Popen([cmd, c3d, peel_json, out], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    out, err = proc.communicate()
-    print(out)
-    print(err)
-    return out
+def solve(file_path=None, rb=True, skel=True):
+    """ Run the standalone solver for rigidbodies and skeletons (see save for rb and skel args) """
+    solve_config = save(file_path=file_path, rb=rb, skel=skel)
+    c3d = m.getAttr(roots.optical() + ".C3dFile")
+    print("C3d: " + c3d)
+    print("Config: " + solve_config)
+    subprocess.call(["m:/bin/peelsolve.exe", c3d, solve_config, solve_config + ".out"])
+    import_solved(solve_config + ".out")
+
+
+def solve_rb():
+    """ Solve selected rigidbodies """
+    solve(rb=m.ls(sl=True), skel=False)
 
 def serialize(root, strip_marker=None, strip_joint=None):
     """ serialize the solve settings for the given root node """
