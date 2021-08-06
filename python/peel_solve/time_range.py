@@ -65,11 +65,11 @@ class TimeRangeWidget(QtWidgets.QWidget):
         self.populate()
 
     def clear(self):
+        self.ranges.setRowCount(0)
         self.ranges.clear()
 
     def populate(self):
-        self.ranges.clear()
-        self.ranges.setRowCount(0)
+        self.clear()
 
         optical_root = roots.optical()
         if optical_root is None:
