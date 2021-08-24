@@ -118,7 +118,7 @@ def list_attr(item):
     attrs = dep.attributeCount()
     for i in range(0, attrs):
         at = dep.attribute(i)
-        print attr_name(at)
+        print(attr_name(at))
 
 
 def anim_curve(node, attr, create=False):

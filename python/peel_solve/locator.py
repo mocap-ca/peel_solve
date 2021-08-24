@@ -209,8 +209,6 @@ def add_joint_attributes(joint=None):
     remove_attr(joint, "rotationWeight")
 
 
-
-
 def transform_attr(attr_type=1):
 
     """ Adds the transform attributes to a node, or connects if more than one item is selected """

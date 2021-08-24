@@ -1,7 +1,7 @@
 import maya.OpenMaya as om
 import maya.OpenMayaAnim as oma
 import maya.cmds as m
-import dag
+from peel_solve import dag
 import sys
 
 

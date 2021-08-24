@@ -114,8 +114,7 @@ def zero_selected(first_frame=1):
     
     nodes = m.ls(sl=True)
     keys = m.keyframe(nodes, q=True)
-    print min(keys), max(keys)
-    
+
     value = round(min(keys))
 
     offset = min(keys) * -1 + first_frame
@@ -144,8 +143,6 @@ def zero_anim(first_frame=1, prefix=None):
 
 def zero(nodes, first_frame=0):
     keys = m.keyframe(nodes, q=True)
-
-    print min(keys), max(keys)
 
     offset = min(keys) * -1 + first_frame
 

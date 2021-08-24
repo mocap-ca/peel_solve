@@ -21,10 +21,9 @@
 
 import maya.cmds as m
 from maya import mel
-import solve
 import json
 import math
-from peel_solve import locator, roots, rigidbody, dag, joint, matrix
+from peel_solve import locator, roots, rigidbody, dag, joint, matrix, solve
 import maya.OpenMaya as om
 import maya.OpenMayaAnim as oma
 import os.path
@@ -174,7 +173,7 @@ def save(file_path=None, strip_marker=None, strip_joint=None, rb=True, skel=True
         raise RuntimeError('Nothing found to export')
 
     if file_path is not None:
-        print "Saved to: " + file_path.replace('/', '\\')
+        print("Saved to: " + file_path.replace('/', '\\'))
         with open(file_path, "w") as fp:
             json.dump(ret, fp, indent=4)
             return file_path
@@ -443,7 +442,7 @@ def import_solved(in_path):
         try:
             dag.apply_curve(node, addr, frame_data[i])
         except RuntimeError as e:
-            print str(e)
+            print(str(e))
         
     print("Import complete")
 
@@ -469,8 +468,6 @@ def test(root):
         nodes.push_back((name, parent))
 
     for i, parent in nodes:
-        print
-        i, parent
         if parent:
             m.parent("x_" + i, "x_" + parent)
 

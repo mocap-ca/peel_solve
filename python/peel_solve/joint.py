@@ -1,7 +1,6 @@
 import maya.OpenMaya as om
 import maya.OpenMayaAnim as oma
-import matrix
-import dag
+from peel_solve import matrix, dag
 
 
 def getJoint(name):

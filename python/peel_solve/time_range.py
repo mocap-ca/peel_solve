@@ -65,11 +65,11 @@ class TimeRangeWidget(QtWidgets.QWidget):
         self.populate()
 
     def clear(self):
-        self.ranges.setRowCount(0)
-        self.ranges.clear()
+        self.populate()
 
     def populate(self):
-        self.clear()
+        self.ranges.setRowCount(0)
+        self.ranges.clear()
 
         optical_root = roots.optical()
         if optical_root is None:
@@ -77,6 +77,7 @@ class TimeRangeWidget(QtWidgets.QWidget):
             self.tc_rate.setText("")
             self.tc_start.setText("")
             return
+        
         self.frame_start.setText(str(time_util.c3d_start(optical_root)))
 
         tc_standard = m.getAttr(optical_root + ".C3dTimecodeStandard")
